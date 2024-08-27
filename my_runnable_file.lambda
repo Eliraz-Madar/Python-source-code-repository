@@ -1,0 +1,14 @@
+VAR x = 5
+VAR y= 15
+VAR z = (x > 0) AND (y < 10)
+#This is a comment
+
+(3 + 4) * (2 - 1)
+
+FUN factorial(n)-> IF(n == 0) THEN 1 ELSE n * factorial(n - 1)
+
+factorial(x)
+
+FUN power(base, exponent)-> IF( exponent == 0) THEN 1 ELSE base * power(base, exponent - 1)
+
+power(x, y)
