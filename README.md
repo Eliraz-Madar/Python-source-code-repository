@@ -1,5 +1,5 @@
 # Python-source-code-repository
-Thank you for using our programing language interpreter
+Thank you for using our programing language interpreter.
 The way it works is as follows:
 	For printing values just write it down and press enter
 	For comments use # in the beginning of the comment.
