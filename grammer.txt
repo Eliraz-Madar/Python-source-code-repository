@@ -1,21 +1,56 @@
 <program> ::= <expr>
-<lambda> ::= "lambda" "(" <params> ")" ":" <expr>
-<expr> ::= <function_def> | <function_call> | <arith_expr> | <bool_expr> | <lambda> | <rec_expr> | <BOOLEAN>
-<function_def> ::= "def" <identifier> "(" <params> ")" ":" <expr>
-<params> ::= <identifier> | <identifier> "," <params> | ε
-<function_call> ::= <identifier> "(" <args> ")"
-<args> ::= <expr> | <expr> "," <args> | ε
-<arith_expr> ::= <term> | <arith_expr> '+' <term> | <arith_expr> '-' <term>
-<term> ::= <factor> | <term> '*' <factor> | <term> '/' <factor> | <term> '%' <factor>
-<factor> ::= <INTEGER> | '(' <expr> ')'
-<bool_expr> ::= <comp_expr> | <bool_expr> '&&' <comp_expr> | <bool_expr> '||' <comp_expr> | '!' <comp_expr> | <BOOLEAN>
-<comp_expr> ::= <arith_expr> '<' <arith_expr> | <arith_expr> '>' <arith_expr> | <arith_expr> '<=' <arith_expr> | <arith_expr> '>=' <arith_expr> | <arith_expr> '==' <arith_expr> | <arith_expr> '!=' <arith_expr>
-<rec_expr> ::= "rec" "(" <function_def> ")"
 
-<INTEGER> ::= <SIGN> <DIGIT>+
-<SIGN> ::= '+' | '-' | ε
-<DIGIT> ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
-<BOOLEAN> ::= 'True' | 'False'
-<identifier> ::= <letter> <alphanumeric>*
-<letter> ::= 'a' | 'b' | ... | 'z' | 'A' | 'B' | ... | 'Z'
-<alphanumeric> ::= <letter> | <digit>
+<expr> ::= <bool_or_expr>
+
+<bool_or_expr> ::= <bool_or_expr> '||' <bool_and_expr>
+                 | <bool_and_expr>
+
+<bool_and_expr> ::= <bool_and_expr> '&&' <bool_not_expr>
+                  | <bool_not_expr>
+
+<bool_not_expr> ::= '!' <bool_not_expr>
+                  | <rel_expr>
+                  | <BOOLEAN>
+
+<rel_expr> ::= <arith_expr> <rel_op> <arith_expr>
+             | <arith_expr>
+
+<rel_op> ::= '<' | '>' | '<=' | '>=' | '==' | '!='
+
+<arith_expr> ::= <arith_expr> '+' <term>
+               | <arith_expr> '-' <term>
+               | <term>
+
+<term> ::= <term> '*' <factor>
+         | <term> '/' <factor>
+         | <term> '%' <factor>
+         | <factor>
+
+<factor> ::= <INTEGER>
+           | <IDENTIFIER>
+           | <function_call>
+           | <lambda>
+           | <function_def>
+           | <rec_expr>
+           | '(' <expr> ')'
+
+<function_def> ::= "def" <IDENTIFIER> "(" <params_opt> ")" ":" <expr>
+<lambda>        ::= "lambda" "(" <params_opt> ")" ":" <expr>
+<function_call> ::= <IDENTIFIER> "(" <args_opt> ")"
+<rec_expr>      ::= "rec" "(" <function_def> ")"
+
+<params_opt> ::= ε | <param_list>
+<param_list>  ::= <IDENTIFIER> | <IDENTIFIER> "," <param_list>
+
+<args_opt> ::= ε | <arg_list>
+<arg_list>  ::= <expr> | <expr> "," <arg_list>
+
+<INTEGER>     ::= <SIGN_OPT> <DIGIT>+
+<SIGN_OPT>    ::= '+' | '-' | ε
+
+<BOOLEAN>     ::= 'True' | 'False'
+
+<IDENTIFIER>  ::= <LETTER> <ALPHANUM>*
+<LETTER>      ::= 'a' | 'b' | ... | 'z' | 'A' | 'B' | ... | 'Z'
+<ALPHANUM>    ::= <LETTER> | <DIGIT>
+<DIGIT>       ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
