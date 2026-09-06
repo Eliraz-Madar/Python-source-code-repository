@@ -132,7 +132,10 @@ KEYWORDS = [
 	'FUN',
 	'THEN',
 	'Defun',
-	'EMPTY'
+	'EMPTY',
+	'lambda',
+	'def',
+	'rec'
 ]
 
 class Token:
@@ -160,10 +163,10 @@ class Token:
 #######################################
 
 class Lexer:
-	def __init__(self, fn, text):
+	def __init__(self, fn, text, line_number=0):
 		self.fn = fn
 		self.text = text
-		self.pos = Position(-1, 0, -1, fn, text)
+		self.pos = Position(-1, line_number, -1, fn, text)
 		self.current_char = None
 		self.advance()
 	
@@ -409,10 +412,11 @@ class WhileNode:
 		self.pos_end = self.body_node.pos_end
 
 class FuncDefNode:
-	def __init__(self, var_name_tok, arg_name_toks, body_node):
+	def __init__(self, var_name_tok, arg_name_toks, body_node, auto_bind=True):
 		self.var_name_tok = var_name_tok
 		self.arg_name_toks = arg_name_toks
 		self.body_node = body_node
+		self.auto_bind = auto_bind
 
 		if self.var_name_tok:
 			self.pos_start = self.var_name_tok.pos_start
@@ -434,6 +438,13 @@ class CallNode:
 			self.pos_end = self.arg_nodes[len(self.arg_nodes) - 1].pos_end
 		else:
 			self.pos_end = self.node_to_call.pos_end
+
+class RecNode:
+	def __init__(self, func_def_node):
+		self.func_def_node = func_def_node
+
+		self.pos_start = self.func_def_node.pos_start
+		self.pos_end = self.func_def_node.pos_end
 
 #######################################
 # PARSE RESULT
@@ -668,9 +679,24 @@ class Parser:
 			if res.error: return res
 			return res.success(func_def)
 
+		elif tok.matches(TT_KEYWORD, 'lambda'):
+			lambda_expr = res.register(self.lambda_expr())
+			if res.error: return res
+			return res.success(lambda_expr)
+
+		elif tok.matches(TT_KEYWORD, 'def'):
+			def_expr = res.register(self.def_expr())
+			if res.error: return res
+			return res.success(def_expr)
+
+		elif tok.matches(TT_KEYWORD, 'rec'):
+			rec_expr = res.register(self.rec_expr())
+			if res.error: return res
+			return res.success(rec_expr)
+
 		return res.failure(InvalidSyntaxError(
 			tok.pos_start, tok.pos_end,
-			"Expected int, float, identifier, '+', '-', '(', 'IF', 'FOR', 'WHILE', 'FUN'"
+			"Expected int, float, identifier, '+', '-', '(', 'IF', 'FOR', 'WHILE', 'FUN', 'lambda', 'def' or 'rec'"
 		))
 
 	def if_expr(self):
@@ -914,6 +940,169 @@ class Parser:
 			arg_name_toks,
 			node_to_return
 		))
+
+	def parse_param_list(self):
+		# Assumes current_tok is '(' on entry. Parses '(' [IDENTIFIER (',' IDENTIFIER)*] ')'
+		res = ParseResult()
+
+		if self.current_tok.type != TT_LPAREN:
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected '('"
+			))
+
+		res.register_advancement()
+		self.advance()
+		arg_name_toks = []
+
+		if self.current_tok.type == TT_IDENTIFIER:
+			arg_name_toks.append(self.current_tok)
+			res.register_advancement()
+			self.advance()
+
+			while self.current_tok.type == TT_COMMA:
+				res.register_advancement()
+				self.advance()
+
+				if self.current_tok.type != TT_IDENTIFIER:
+					return res.failure(InvalidSyntaxError(
+						self.current_tok.pos_start, self.current_tok.pos_end,
+						f"Expected identifier"
+					))
+
+				arg_name_toks.append(self.current_tok)
+				res.register_advancement()
+				self.advance()
+
+			if self.current_tok.type != TT_RPAREN:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					f"Expected ',' or ')'"
+				))
+		else:
+			if self.current_tok.type != TT_RPAREN:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					f"Expected identifier or ')'"
+				))
+
+		res.register_advancement()
+		self.advance()
+
+		return res.success(arg_name_toks)
+
+	def lambda_expr(self):
+		# 'lambda' '(' params_opt ')' ':' expr  -- anonymous function, never auto-bound
+		res = ParseResult()
+
+		if not self.current_tok.matches(TT_KEYWORD, 'lambda'):
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected 'lambda'"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		arg_name_toks = res.register(self.parse_param_list())
+		if res.error: return res
+
+		if self.current_tok.type != TT_COLON:
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected ':'"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		node_to_return = res.register(self.expr())
+		if res.error: return res
+
+		return res.success(FuncDefNode(None, arg_name_toks, node_to_return, auto_bind=False))
+
+	def def_expr(self):
+		# 'def' IDENTIFIER '(' params_opt ')' ':' expr -- named function value, NOT auto-bound
+		# (self-recursion only works when wrapped in 'rec(...)')
+		res = ParseResult()
+
+		if not self.current_tok.matches(TT_KEYWORD, 'def'):
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected 'def'"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		if self.current_tok.type != TT_IDENTIFIER:
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected identifier"
+			))
+
+		var_name_tok = self.current_tok
+		res.register_advancement()
+		self.advance()
+
+		arg_name_toks = res.register(self.parse_param_list())
+		if res.error: return res
+
+		if self.current_tok.type != TT_COLON:
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected ':'"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		node_to_return = res.register(self.expr())
+		if res.error: return res
+
+		return res.success(FuncDefNode(var_name_tok, arg_name_toks, node_to_return, auto_bind=False))
+
+	def rec_expr(self):
+		# 'rec' '(' <def_expr> ')' -- wraps a named def so it can call itself recursively
+		res = ParseResult()
+
+		if not self.current_tok.matches(TT_KEYWORD, 'rec'):
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected 'rec'"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		if self.current_tok.type != TT_LPAREN:
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected '('"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		if not self.current_tok.matches(TT_KEYWORD, 'def'):
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected 'def'"
+			))
+
+		func_def_node = res.register(self.def_expr())
+		if res.error: return res
+
+		if self.current_tok.type != TT_RPAREN:
+			return res.failure(InvalidSyntaxError(
+				self.current_tok.pos_start, self.current_tok.pos_end,
+				f"Expected ')'"
+			))
+
+		res.register_advancement()
+		self.advance()
+
+		return res.success(RecNode(func_def_node))
 
 	###################################
 
@@ -1388,8 +1577,26 @@ class Interpreter:
 		arg_names = [arg_name.value for arg_name in node.arg_name_toks]
 		func_value = Function(func_name, body_node, arg_names).set_context(context).set_pos(node.pos_start, node.pos_end)
 		
-		if node.var_name_tok:
+		if node.var_name_tok and node.auto_bind:
 			context.symbol_table.set(func_name, func_value)
+
+		return res.success(func_value)
+
+	def visit_RecNode(self, node, context):
+		res = RTResult()
+
+		fdn = node.func_def_node
+		func_name = fdn.var_name_tok.value
+		arg_names = [arg_name.value for arg_name in fdn.arg_name_toks]
+
+		# Give the function its own scope, seeded with a binding of its own name to
+		# itself, so it can call itself recursively without ever touching or
+		# leaking into the caller's symbol table.
+		rec_context = Context(func_name, context, fdn.pos_start)
+		rec_context.symbol_table = SymbolTable(context.symbol_table)
+
+		func_value = Function(func_name, fdn.body_node, arg_names).set_context(rec_context).set_pos(fdn.pos_start, fdn.pos_end)
+		rec_context.symbol_table.set(func_name, func_value)
 
 		return res.success(func_value)
 
@@ -1418,13 +1625,18 @@ global_symbol_table.set("NULL", Number(0))
 global_symbol_table.set("FALSE", Number(0))
 global_symbol_table.set("TRUE", Number(1))
 
-def run(fn, text, line_number=1):
+def run(fn, text, line_number=0):
     # Generate tokens
-    lexer = Lexer(fn, text)
+    lexer = Lexer(fn, text, line_number)
     tokens, error = lexer.make_tokens()
     if error: 
         error.line_number = line_number  # Attach line number to the error
         return [0], error
+
+    # A blank line or a comment-only line tokenizes to just EOF -- that's a
+    # no-op, not a syntax error, so don't try to parse it.
+    if len(tokens) == 1 and tokens[0].type == TT_EOF:
+        return None, None
     
     # Generate AST
     parser = Parser(tokens)
@@ -1440,4 +1652,3 @@ def run(fn, text, line_number=1):
     result = interpreter.visit(ast.node, context)
 
     return result.value, result.error
-

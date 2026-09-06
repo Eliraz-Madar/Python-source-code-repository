@@ -26,11 +26,11 @@ Welcome to the **Functional Programming Language Interpreter**! This repository 
 ## Installation
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-username/repository-name.git
+   git clone https://github.com/Eliraz-Madar/Python-source-code-repository.git
    ```
 2. Navigate to the project directory:
    ```bash
-   cd repository-name
+   cd Python-source-code-repository
    ```
 3. Ensure Python 3.x is installed on your system.
 
@@ -43,7 +43,11 @@ python main.py
 In this mode, you can type expressions or statements, and the interpreter will evaluate them immediately.
 
 ### Running Scripts
-Currently, `.lambda` scripts cannot be executed due to unresolved issues. You can still experiment with the language interactively using the REPL.
+Run a `.lambda` file directly:
+```bash
+python main.py my_script.lambda
+```
+Each line is executed in turn; results are printed as they're produced, and any error is reported with the correct line number.
 
 ## Language Syntax
 ### Comments
@@ -78,10 +82,34 @@ Example:
 IF x > 0 THEN VAR y = 1 ELSE VAR y = -1
 ```
 
+### Anonymous Functions (lambda)
+Create a function value without naming it, using `lambda`:
+```lambda
+lambda(params): expression
+```
+Example:
+```lambda
+(lambda(x): x + 1)(5)          # 6
+VAR square = lambda(n): n * n
+square(4)                      # 16
+```
+
+### Named Function Values (def) and Recursion (rec)
+`def` creates a named function value (usable anywhere an expression is), but on its own it can't call itself:
+```lambda
+def name(params): expression
+```
+To make a function genuinely recursive without binding its name anywhere else, wrap it in `rec`:
+```lambda
+VAR fact = rec(def fact(n): IF (n == 0) THEN 1 ELSE n * fact(n - 1))
+fact(5)                         # 120
+```
+Note: `FUN name(params) -> expression` (see [Functions](#functions)) already supports recursion on its own, since it binds its name as a side effect. `rec` is for cases where you don't want that side effect — e.g. an inline recursive function passed straight into another call.
+
 ## Known Issues
-- The interpreter does not check if variables passed to functions are initialized.
-- Lambda functions are currently not executable.
-- Script execution for `.lambda` files is non-functional.
+None currently known. Previously reported issues have been resolved:
+- Errors (including a variable being undefined/uninitialized) are now always reported, with the correct line number, instead of being silently swallowed.
+- Anonymous (`lambda`) and explicitly recursive (`rec`) functions are now supported, matching the language grammar.
 
 ## Contributing
 We welcome contributions! To contribute:
@@ -94,4 +122,3 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ---
 We hope you enjoy using this interpreter and exploring its capabilities!
-

@@ -3,7 +3,6 @@ import my_language
 import sys
 
 
-
 def main(filename):
 	# check for validity
 	if not filename.endswith(".lambda"):
@@ -13,31 +12,17 @@ def main(filename):
 	# read content
 	with open(filename, "r") as file:
 		data = file.read().splitlines()
-		
-		i = 0
-		for line in data:
-			print(f"line {i+1}: {line}")
-			if i+1 == 14:
-				result, error = my_language.run('<stdin>', line,i)
 
-			result, error = my_language.run('<stdin>', line,i)
-			i+=1
-			
-				
+		for i, line in enumerate(data):
+			print(f"line {i+1}: {line}")
+			result, error = my_language.run(filename, line, i)
+
 			# handle result
 			if error:
-				# error	
-				if result != None:			
-					if result[0] != "EOF":
-						continue
-					else:
-						print("here")
-						print(error.as_string())
-						break
-			elif result:
-				# success
+				print(error.as_string())
+			elif result is not None:
 				print(result)
-			
+
 
 if __name__ == "__main__":
 
@@ -53,6 +38,5 @@ if __name__ == "__main__":
 
 			if error:
 				print(error.as_string())
-			elif result:
+			elif result is not None:
 				print(result)
-			
